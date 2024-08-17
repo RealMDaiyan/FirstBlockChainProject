@@ -1,6 +1,10 @@
 import hashlib
 import json
+from crypt import methods
 from time import time
+from textwrap import dedent
+from uuid import uuid4
+from flask import Flask
 
 
 class BlockChain(object):
@@ -9,7 +13,7 @@ class BlockChain(object):
         self.current_transactions = []
 
         #Creates the genesis block
-        self.new_block(previous_hash=1, proof=100)
+        self.new_block(1, 100)
 
     def new_block(self, proof, previous_hash=None):
         # Function that creates a new block and add to the chain
@@ -62,4 +66,32 @@ class BlockChain(object):
     def last_block(self):
         # Returns the last block in a chain
         return self.chain[-1]
+
+# instantiate the node
+app = Flask(__name__)
+
+# Generate an address for this node
+node_identifier = str(uuid4()).replace('-', '')
+
+# Instantiate the blockChain
+blockchain = BlockChain()
+
+@app.route('/mine', methods=['GET'])
+def mine():
+    return "We'll mine a new block"
+
+@app.route('/transactions/new', methods=['GET'])
+def new_transaction():
+    return "Well add a new transaction"
+
+
+@app.route('/chain', methods=['GET'])
+def full_chain():
+    response = {
+        'chain': blockchain.chain,
+
+    }
+
+
+
 
