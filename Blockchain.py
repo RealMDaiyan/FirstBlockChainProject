@@ -4,7 +4,7 @@ from crypt import methods
 from time import time
 from textwrap import dedent
 from uuid import uuid4
-from flask import Flask
+from flask import Flask, jsonify, request
 
 
 class BlockChain(object):
@@ -13,7 +13,7 @@ class BlockChain(object):
         self.current_transactions = []
 
         #Creates the genesis block
-        self.new_block(1, 100)
+        self.new_block(100, 1)
 
     def new_block(self, proof, previous_hash=None):
         # Function that creates a new block and add to the chain
@@ -80,17 +80,29 @@ blockchain = BlockChain()
 def mine():
     return "We'll mine a new block"
 
-@app.route('/transactions/new', methods=['GET'])
+@app.route('/transactions/new', methods=['POST'])
 def new_transaction():
-    return "Well add a new transaction"
+    values = request.get_json()
+
+    required = ['sender', 'recipient', 'amount']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
+    index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
+    response = {'message': f'Transaction will be added to index {index}'}
+    return jsonify(response), 201
 
 
 @app.route('/chain', methods=['GET'])
 def full_chain():
     response = {
         'chain': blockchain.chain,
-
+        'length': len(blockchain.chain)
     }
+    return jsonify(response), 200
+
+if __name__ == '__main__':
+    app.run('0.0.0.0', 5000)
+
 
 
 
