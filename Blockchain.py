@@ -2,16 +2,63 @@ import hashlib
 import json
 from time import time
 from uuid import uuid4
-from flask import Flask, jsonify, request
 
+import requests
+from flask import Flask, jsonify, request
+from urllib.parse import urlparse
 
 class BlockChain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
+        self.nodes = set()
 
         # Creates the genesis block
         self.new_block(previous_hash=1, proof=100)
+
+    def register_node(self, address):
+        parsed_url = urlparse(address)
+        self.nodes.add(parsed_url.netloc)
+
+    def valid_chain(self, chain):
+        last_block = chain[0]
+        current_index = 1
+
+        while current_index < len(chain):
+            block = chain[current_index]
+            print(f'{last_block}')
+            print(f'{block}')
+            print(f'\n-----------\n')
+
+            if not self.valid_proof(last_block['proof'], block['proof']):
+                return False
+
+            last_block = block;
+            current_index += 1
+        return True
+
+    def resolve_conflicts(self):
+        neighbours = self.nodes
+        new_chain = None
+
+        max_length = len(self.chain)
+
+        for node in neighbours:
+            response = requests.get(f'http://{node}/chain')
+
+            if response.status_code == 200:
+                length = response.json()['length']
+                chain = response.json()['chain']
+
+            if len > max_length:
+                max_length = length
+                new_chain = chain
+
+            if new_chain:
+                self.chain = new_chain
+                return True
+            return False
+
 
     def new_block(self, proof, previous_hash=None):
         # Function that creates a new block and adds it to the chain
@@ -110,12 +157,43 @@ def new_transaction():
     if not all(k in values for k in required):
         return jsonify({'message': 'Missing values'}), 400
 
-    if not isinstance(values['amount'], (int, float)) or values['amount'] <= 0:
-        return jsonify({'message': 'Invalid amount'}), 400
-
     index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
     response = {'message': f'Transaction will be added to Block {index}'}
     return jsonify(response), 201
+
+@app.route('/nodes/register', methods=['POST'])
+def register_nodes():
+    values = request.get_json()
+
+    nodes = values.get('nodes')
+    if nodes is None:
+        return "Error: please supply a valid list of nodes", 400
+    for node in nodes:
+        blockchain.register_node(node)
+
+    response = {
+        'message': 'New node have been added',
+        'total_nodes': list(blockchain.nodes),
+    }
+    return jsonify(response), 201
+
+@app.route('/nodes/resolve', methods=['GET'])
+def consensus():
+    replaced = blockchain.resolve_conflicts()
+
+    if replaced:
+        response = {
+            'message': 'Our chain was replaced',
+            'new_chain': blockchain.chain,
+        }
+    else:
+        response = {
+            'message': 'Our chain is authoritative',
+            'chain': blockchain.chain,
+        }
+
+    return jsonify(response), 200
+
 
 
 @app.route('/chain', methods=['GET'])
